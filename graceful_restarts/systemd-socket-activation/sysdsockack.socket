@@ -1,0 +1,16 @@
+# /etc/systemd/system/sysdsockack.socket
+[Unit]
+Description=SysdSockAck incoming sockets
+
+[Socket]
+# Your main application port
+ListenStream=0.0.0.0:8080
+
+# Your metrics port
+ListenStream=127.0.0.1:8081
+
+# Queue connections until the service is ready
+Accept=no
+
+[Install]
+WantedBy=sockets.target

@@ -1,0 +1,28 @@
+# /etc/systemd/system/sysdsockack.service
+[Unit]
+Description=SysdSockAck Go service
+Requires=sysdsockack.socket
+After=network.target
+
+[Service]
+# Path to your binary
+ExecStart=/home/ankitkul/OneDrive/projects/gotry/graceful_restarts/systemd-socket-activation/systemd-socket-activation
+
+# Handle graceful reload (SIGHUP) — this does NOT kill the old process
+ExecReload=/bin/kill -HUP $MAINPID
+
+# Don't kill child processes on reload
+KillMode=process
+
+# Automatically restart on crashes, but not on reloads
+Restart=on-failure
+RestartSec=2s
+
+
+
+# Make sure we inherit the systemd sockets
+NonBlocking=true
+
+
+[Install]
+WantedBy=multi-user.target
