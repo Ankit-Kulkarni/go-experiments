@@ -8,6 +8,15 @@
 *.so
 *.dylib
 
+# Built Go binaries (present in repo directories)
+graceful_restarts/SocketHandoff/graceful
+graceful_restarts/systemd-socket-activation/systemd-socket-activation
+idGen/idgen
+proxyProto/s1
+proxyProto/s2
+tcpqueue/tcpq
+websockets/webs
+
 # Test binary, built with `go test -c`
 *.test
 

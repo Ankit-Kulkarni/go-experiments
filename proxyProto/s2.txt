@@ -1,0 +1,110 @@
+package main
+
+import (
+    "encoding/binary"
+    "fmt"
+    "errors"
+    "io" // Import the io package
+    "net"
+)
+
+const (
+    ppv2HeaderSize = 12
+    ipv4Length     = 4
+    portLength     = 2
+)
+
+// ProxyProtocolV2Header represents a parsed Proxy Protocol Version 2 header.
+type ProxyProtocolV2Header struct {
+    SourceAddress      net.IP
+    DestinationAddress net.IP
+    SourcePort         uint16
+    DestinationPort    uint16
+}
+
+// ParsePPv2Header reads and parses a Proxy Protocol Version 2 header from a connection.
+func ParsePPv2Header(conn net.Conn) (*ProxyProtocolV2Header, error) {
+    header := make([]byte, ppv2HeaderSize)
+    if _, err := io.ReadFull(conn, header); err != nil {
+        return nil, err
+    }
+
+    // Verify the header signature
+    if !isValidPPv2Signature(header) {
+        return nil, errors.New("invalid Proxy Protocol v2 header signature")
+    }
+
+    protocolFamily := header[13]
+    length := header[14]
+
+    addrInfo := make([]byte, length)
+    if _, err := io.ReadFull(conn, addrInfo); err != nil {
+        return nil, err
+    }
+
+    var srcAddr net.IP
+    var dstAddr net.IP
+    var srcPort, dstPort uint16
+
+    switch protocolFamily {
+    case 0x01: // IPv4
+        if length != ipv4Length*2+portLength*2 {
+            return nil, errors.New("invalid address length for IPv4")
+        }
+        srcAddr = net.IP(addrInfo[:ipv4Length])
+        dstAddr = net.IP(addrInfo[ipv4Length : ipv4Length*2])
+        srcPort = binary.BigEndian.Uint16(addrInfo[ipv4Length*2 : ipv4Length*2+portLength])
+        dstPort = binary.BigEndian.Uint16(addrInfo[ipv4Length*2+portLength:])
+    default:
+        return nil, errors.New("unsupported protocol family")
+    }
+
+    return &ProxyProtocolV2Header{
+        SourceAddress:      srcAddr,
+        DestinationAddress: dstAddr,
+        SourcePort:         srcPort,
+        DestinationPort:    dstPort,
+    }, nil
+}
+
+// isValidPPv2Signature checks if the header matches the Proxy Protocol v2 signature.
+func isValidPPv2Signature(header []byte) bool {
+    return header[0] == 0x0D && header[1] == 0x0A && header[2] == 0x0D && header[3] == 0x0A &&
+           header[4] == 0x21 && header[5] == 0x50 && header[6] == 0x52 && header[7] == 0x4F &&
+           header[8] == 0x58 && header[9] == 0x59 && header[10] == 0x20 && header[11] == 0x32
+}
+
+func handleConnection(conn net.Conn) {
+    defer conn.Close()
+
+    header, err := ParsePPv2Header(conn)
+    if err != nil {
+        fmt.Println("Error parsing header:", err)
+        return
+    }
+
+    fmt.Printf("Client IP: %s, Client Port: %d\n", header.SourceAddress, header.SourcePort)
+
+    // Echo back to the client (for demonstration)
+    conn.Write([]byte("Hello from S2!\n"))
+}
+
+func main() {
+    listener, err := net.Listen("tcp", ":8081")
+    if err != nil {
+        fmt.Println("Error:", err)
+        return
+    }
+    defer listener.Close()
+
+    fmt.Println("S2 is listening on :8081")
+    for {
+        conn, err := listener.Accept()
+        if err != nil {
+            fmt.Println("Error accepting connection:", err)
+            continue
+        }
+        go handleConnection(conn)
+    }
+}
+
